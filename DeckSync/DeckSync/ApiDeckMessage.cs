@@ -18,5 +18,5 @@ public class ApiDeckData
 public class DeckScroll
 {
     public int id;
-    public int count;
+    public int c;
 }

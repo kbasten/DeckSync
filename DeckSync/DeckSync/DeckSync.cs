@@ -28,6 +28,8 @@ namespace DeckSync
         private bool inited = false;
         private Dictionary<long, Card> allCardsDict = null;
 
+        private Type deckBuilderType = typeof(DeckBuilder2);
+
         ~DeckSync()
         {
             closeLog();
@@ -49,7 +51,7 @@ namespace DeckSync
                     log.WriteLine("Importing");
                     isImport = true;
 
-                    App.Popups.ShowSaveDeck(this, "http://www.scrollsguide.com/deckbuilder/?d=123", "");
+                    App.Popups.ShowSaveDeck(this, "http://www.scrollsguide.com/deckbuilder/?d=143", "");
                 }
                 if (LobbyMenu.drawButton(positioner3.getButtonRect(4f), "Sync Deck"))
                 {
@@ -58,10 +60,9 @@ namespace DeckSync
             }
             else if (info.TargetMethod().Equals("ShowSaveDeck"))
             {
+                Type popupType = typeof(Popups);
                 if (isImport)
                 {
-                    Type popupType = typeof(Popups);
-
                     FieldInfo description = popupType.GetField("description", BindingFlags.NonPublic | BindingFlags.Instance);
                     description.SetValue(App.Popups, "Insert the link to your deck:");
 
@@ -70,6 +71,18 @@ namespace DeckSync
 
                     FieldInfo okText = popupType.GetField("okText", BindingFlags.NonPublic | BindingFlags.Instance);
                     okText.SetValue(App.Popups, "Import");
+                }
+                else
+                {
+                    FieldInfo description = popupType.GetField("description", BindingFlags.NonPublic | BindingFlags.Instance);
+                    description.SetValue(App.Popups, "Please name your deck");
+
+                    FieldInfo header = popupType.GetField("header", BindingFlags.NonPublic | BindingFlags.Instance);
+                    header.SetValue(App.Popups, "Save deck");
+
+                    FieldInfo okText = popupType.GetField("okText", BindingFlags.NonPublic | BindingFlags.Instance);
+                    okText.SetValue(App.Popups, "Save");
+
                 }
             }
         }
@@ -121,8 +134,6 @@ namespace DeckSync
                     Console.WriteLine(e);
                 }
                 DeckSync.loaded = true;
-
-                loadFromWeb("143");
             }
         }
 
@@ -141,35 +152,29 @@ namespace DeckSync
                 if (m.Success)
                 {
                     log.WriteLine("Regex: " + m.Groups[1].Value);
-                    loadFromWeb(m.Groups[1].Value);
+
+                    FieldInfo initedInfo = deckBuilderType.GetField("inited", BindingFlags.NonPublic | BindingFlags.Instance);
+
+                    inited = (bool)initedInfo.GetValue(deckBuilder);
+                    if (inited)
+                    {
+                        log.WriteLine("inited");
+
+                        FieldInfo deckListInfo = deckBuilderType.GetField("allCardsDict", BindingFlags.NonPublic | BindingFlags.Instance);
+                        allCardsDict = (Dictionary<long, Card>)deckListInfo.GetValue(deckBuilder);
+
+                        loadFromWeb(m.Groups[1].Value);
+                    }
+                    else
+                    {
+                        log.WriteLine("not inited");
+                    }
                 }
                 else
                 {
                     log.WriteLine("No regex");
                 }
 
-                Type deckBuilderType = typeof(DeckBuilder2);
-                FieldInfo initedInfo = deckBuilderType.GetField("inited", BindingFlags.NonPublic | BindingFlags.Instance);
-
-                inited = (bool)initedInfo.GetValue(deckBuilder);
-                if (inited)
-                {
-                    log.WriteLine("inited");
-
-                    FieldInfo deckListInfo = deckBuilderType.GetField("allCardsDict", BindingFlags.NonPublic | BindingFlags.Instance);
-                    allCardsDict = (Dictionary<long, Card>)deckListInfo.GetValue(deckBuilder);
-                   
-                    
-                    MethodInfo mo = deckBuilderType.GetMethod("createDeckCard", BindingFlags.NonPublic | BindingFlags.Instance);
-                    DeckCard dc =(DeckCard) mo.Invoke(deckBuilder, new object[] { (Card)allCardsDict[5907178], (Vector3)Vector3.zero });
-
-                    MethodInfo mi = deckBuilderType.GetMethod("clearBoard", BindingFlags.Instance);
-                    mi.Invoke(deckBuilder, null);
-                }
-                else
-                {
-                    log.WriteLine("not inited");
-                }
             }
             else
             {
@@ -195,6 +200,34 @@ namespace DeckSync
 
             log.WriteLine(adm.msg);
 
+            if (adm.msg.Equals("success"))
+            {
+                List<long> toPlaceOnBoard = new List<long>();
+                foreach (KeyValuePair<long, Card> singleScroll in allCardsDict)
+                {
+                    //log.WriteLine("Checking " + singleScroll.Value.getName() + " ...");
+                    for (int i = 0; i < adm.data.scrolls.Length; i++)
+                    {
+                        DeckScroll d = adm.data.scrolls[i];
+                        //log.WriteLine("Comparing " + d.id + " to " + singleScroll.Value.getCardType().id + " ...");
+                        if (singleScroll.Value.getCardType().id == d.id && d.c > 0 && !toPlaceOnBoard.Contains(singleScroll.Key)) // this scroll needs to be added to the deck still
+                        {
+                            d.c--;
+                            toPlaceOnBoard.Add(singleScroll.Key);
+                            // log.WriteLine("Added to toPlaceOnBoard");
+                        }
+                    }
+                }
+
+                if (toPlaceOnBoard.Count > 0)
+                {
+                    MethodInfo mo = deckBuilderType.GetMethod("loadDeck", BindingFlags.NonPublic | BindingFlags.Instance);
+                    mo.Invoke(deckBuilder, new object[] { (int)-1, (List<long>)toPlaceOnBoard, null });
+
+                    // mo = deckBuilderType.GetMethod("alignTableCards", BindingFlags.NonPublic | BindingFlags.Instance);
+                    //mo.Invoke(deckBuilder, new object[]{(int)1});
+                }
+            }
         }
     }
 }
