@@ -1,0 +1,10 @@
+C:\Users\kbasten\Documents\GitHub\DeckSync\DeckSync\DeckSync\obj\Release\DeckSync.csprojResolveAssemblyReference.cache
+C:\Users\kbasten\Documents\GitHub\DeckSync\DeckSync\DeckSync\bin\Release\DeckSync.mod.dll
+C:\Users\kbasten\Documents\GitHub\DeckSync\DeckSync\DeckSync\bin\Release\DeckSync.mod.pdb
+C:\Users\kbasten\Documents\GitHub\DeckSync\DeckSync\DeckSync\bin\Release\Assembly-CSharp.dll
+C:\Users\kbasten\Documents\GitHub\DeckSync\DeckSync\DeckSync\bin\Release\JsonFx.dll
+C:\Users\kbasten\Documents\GitHub\DeckSync\DeckSync\DeckSync\bin\Release\Mono.Cecil.dll
+C:\Users\kbasten\Documents\GitHub\DeckSync\DeckSync\DeckSync\bin\Release\ScrollsModLoader.Interfaces.dll
+C:\Users\kbasten\Documents\GitHub\DeckSync\DeckSync\DeckSync\bin\Release\UnityEngine.dll
+C:\Users\kbasten\Documents\GitHub\DeckSync\DeckSync\DeckSync\obj\Release\DeckSync.mod.dll
+C:\Users\kbasten\Documents\GitHub\DeckSync\DeckSync\DeckSync\obj\Release\DeckSync.mod.pdb

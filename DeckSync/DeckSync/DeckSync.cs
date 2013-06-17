@@ -21,7 +21,6 @@ namespace DeckSync
         private DeckBuilder2 deckBuilder = null;
 
         public static bool loaded = false;
-        private StreamWriter log;
 
         private bool isImport = false;
 
@@ -30,35 +29,19 @@ namespace DeckSync
 
         private Type deckBuilderType = typeof(DeckBuilder2);
 
-        ~DeckSync()
-        {
-            closeLog();
-        }
-
-        private void closeLog()
-        {
-            log.Flush();
-            log.Close();
-        }
-
         public override void AfterInvoke(InvocationInfo info, ref object returnValue)
         {
-            if (info.TargetMethod().Equals("OnGUI"))
+            if (info.targetMethod.Equals("OnGUI"))
             {
                 GUIPositioner positioner3 = App.LobbyMenu.getSubMenuPositioner(1f, 5);
                 if (LobbyMenu.drawButton(positioner3.getButtonRect(3f), "Import Deck"))
                 {
-                    log.WriteLine("Importing");
                     isImport = true;
 
                     App.Popups.ShowSaveDeck(this, "http://www.scrollsguide.com/deckbuilder/?d=143", "");
                 }
-                if (LobbyMenu.drawButton(positioner3.getButtonRect(4f), "Sync Deck"))
-                {
-                    log.WriteLine("click :)");
-                }
             }
-            else if (info.TargetMethod().Equals("ShowSaveDeck"))
+            else if (info.targetMethod.Equals("ShowSaveDeck"))
             {
                 Type popupType = typeof(Popups);
                 if (isImport)
@@ -89,19 +72,18 @@ namespace DeckSync
 
         public override bool BeforeInvoke(InvocationInfo info, out object returnValue)
         {
-            if (info.TargetMethod().Equals("addListener"))
+            if (info.targetMethod.Equals("addListener"))
             {
-                if (info.Arguments()[0] is DeckBuilder2)
+                if (info.arguments[0] is DeckBuilder2)
                 {
-                    deckBuilder = (DeckBuilder2)info.Arguments()[0];
-                    log.WriteLine("now added deckbuidler");
+                    deckBuilder = (DeckBuilder2)info.arguments[0];
                 }
             }
             returnValue = null;
             return false;
         }
 
-        public override Mono.Cecil.MethodDefinition[] GetHooks(Mono.Cecil.TypeDefinitionCollection scrollsTypes, int version)
+        public static MethodDefinition[] GetHooks(TypeDefinitionCollection scrollsTypes, int version)
         {
             return new MethodDefinition[] {
                     scrollsTypes["Communicator"].Methods.GetMethod("addListener", new Type[]{typeof(ICommListener)}),
@@ -110,31 +92,14 @@ namespace DeckSync
             };
         }
 
-        public override string GetName()
+        public static string GetName()
         {
             return "DeckSync";
         }
 
-        public override int GetVersion()
+        public static int GetVersion()
         {
             return 1;
-        }
-
-        public override void Init()
-        {
-            if (!DeckSync.loaded)
-            {
-                try
-                {
-                    log = File.CreateText("DeckSync.log");
-                    log.AutoFlush = true;
-                }
-                catch (IOException e)
-                {
-                    Console.WriteLine(e);
-                }
-                DeckSync.loaded = true;
-            }
         }
 
         public void PopupCancel(string popupType)
@@ -146,20 +111,14 @@ namespace DeckSync
         {
             if (popupType == "savedeck" && isImport)
             {
-                log.WriteLine("now loading deck " + choice);
-
                 Match m = Regex.Match(choice, "^http://www\\.scrollsguide\\.com/deckbuilder/\\?d=([0-9]+)$");
                 if (m.Success)
                 {
-                    log.WriteLine("Regex: " + m.Groups[1].Value);
-
                     FieldInfo initedInfo = deckBuilderType.GetField("inited", BindingFlags.NonPublic | BindingFlags.Instance);
 
                     inited = (bool)initedInfo.GetValue(deckBuilder);
                     if (inited)
                     {
-                        log.WriteLine("inited");
-
                         FieldInfo deckListInfo = deckBuilderType.GetField("allCardsDict", BindingFlags.NonPublic | BindingFlags.Instance);
                         allCardsDict = (Dictionary<long, Card>)deckListInfo.GetValue(deckBuilder);
 
@@ -167,12 +126,10 @@ namespace DeckSync
                     }
                     else
                     {
-                        log.WriteLine("not inited");
                     }
                 }
-                else
+                else // no matches for regex
                 {
-                    log.WriteLine("No regex");
                 }
 
             }
@@ -180,11 +137,9 @@ namespace DeckSync
             {
                 if (!isImport)
                 {
-                    log.WriteLine("not isimport");
                 }
                 else
                 {
-                    log.WriteLine("isimport");
                 }
             }
         }
@@ -193,12 +148,8 @@ namespace DeckSync
         {
             String deckJSON = new WebClient().DownloadString("http://a.scrollsguide.com/deck/load?id=" + deckId);
 
-            log.WriteLine(deckJSON);
-
             JsonReader reader = new JsonReader();
             ApiDeckMessage adm = reader.Read(deckJSON, System.Type.GetType("ApiDeckMessage")) as ApiDeckMessage;
-
-            log.WriteLine(adm.msg);
 
             if (adm.msg.Equals("success"))
             {
