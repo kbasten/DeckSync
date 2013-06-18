@@ -15,14 +15,12 @@ using UnityEngine;
 
 namespace DeckSync
 {
-    public class DeckSync : BaseMod , IOkStringCancelCallback
+    public class DeckSync : BaseMod, IOkStringCancelCallback
     {
 
         private DeckBuilder2 deckBuilder = null;
 
         public static bool loaded = false;
-
-        private bool isImport = false;
 
         private bool inited = false;
         private Dictionary<long, Card> allCardsDict = null;
@@ -36,36 +34,7 @@ namespace DeckSync
                 GUIPositioner positioner3 = App.LobbyMenu.getSubMenuPositioner(1f, 5);
                 if (LobbyMenu.drawButton(positioner3.getButtonRect(3f), "Import Deck"))
                 {
-                    isImport = true;
-
-                    App.Popups.ShowSaveDeck(this, "http://www.scrollsguide.com/deckbuilder/?d=143", "");
-                }
-            }
-            else if (info.targetMethod.Equals("ShowSaveDeck"))
-            {
-                Type popupType = typeof(Popups);
-                if (isImport)
-                {
-                    FieldInfo description = popupType.GetField("description", BindingFlags.NonPublic | BindingFlags.Instance);
-                    description.SetValue(App.Popups, "Insert the link to your deck:");
-
-                    FieldInfo header = popupType.GetField("header", BindingFlags.NonPublic | BindingFlags.Instance);
-                    header.SetValue(App.Popups, "Import deck");
-
-                    FieldInfo okText = popupType.GetField("okText", BindingFlags.NonPublic | BindingFlags.Instance);
-                    okText.SetValue(App.Popups, "Import");
-                }
-                else
-                {
-                    FieldInfo description = popupType.GetField("description", BindingFlags.NonPublic | BindingFlags.Instance);
-                    description.SetValue(App.Popups, "Please name your deck");
-
-                    FieldInfo header = popupType.GetField("header", BindingFlags.NonPublic | BindingFlags.Instance);
-                    header.SetValue(App.Popups, "Save deck");
-
-                    FieldInfo okText = popupType.GetField("okText", BindingFlags.NonPublic | BindingFlags.Instance);
-                    okText.SetValue(App.Popups, "Save");
-
+                    App.Popups.ShowTextInput(this, "http://www.scrollsguide.com/deckbuilder/#143", "", "impdeck", "Import deck", "Insert the link to your deck:", "Import");
                 }
             }
         }
@@ -87,8 +56,7 @@ namespace DeckSync
         {
             return new MethodDefinition[] {
                     scrollsTypes["Communicator"].Methods.GetMethod("addListener", new Type[]{typeof(ICommListener)}),
-                    scrollsTypes["DeckBuilder2"].Methods.GetMethod("OnGUI")[0],
-                    scrollsTypes["Popups"].Methods.GetMethod("ShowSaveDeck", new Type[]{ typeof(IOkStringCancelCallback), typeof(String), typeof(String)})
+                    scrollsTypes["DeckBuilder2"].Methods.GetMethod("OnGUI")[0]
             };
         }
 
@@ -104,42 +72,44 @@ namespace DeckSync
 
         public void PopupCancel(string popupType)
         {
-            isImport = false;
+
         }
 
         public void PopupOk(string popupType, string choice)
         {
-            if (popupType == "savedeck" && isImport)
+            if (popupType == "impdeck")
             {
-                Match m = Regex.Match(choice, "^http://www\\.scrollsguide\\.com/deckbuilder/\\?d=([0-9]+)$");
-                if (m.Success)
-                {
-                    FieldInfo initedInfo = deckBuilderType.GetField("inited", BindingFlags.NonPublic | BindingFlags.Instance);
+                // try a few regex patterns until a match is found
+                List<RegexPattern> patterns = new List<RegexPattern>();
+                patterns.Add(new RegexPattern("^http://www\\.scrollsguide\\.com/deckbuilder/\\?d=([0-9]+)$", 1));
+                patterns.Add(new RegexPattern("^http://www\\.scrollsguide\\.com/deckbuilder/?#([0-9]+)$", 1)); // not sure whether the / after deckbuilder is required...
+                patterns.Add(new RegexPattern("^#?([0-9]+)$", 1));
 
-                    inited = (bool)initedInfo.GetValue(deckBuilder);
-                    if (inited)
+                bool hasMatch = false;
+                for (int i = 0; i < patterns.Count && !hasMatch; i++)
+                {
+                    RegexPattern pattern = patterns[i];
+
+                    Match m = Regex.Match(choice, pattern.getPattern());
+                    if (m.Success)
                     {
-                        FieldInfo deckListInfo = deckBuilderType.GetField("allCardsDict", BindingFlags.NonPublic | BindingFlags.Instance);
-                        allCardsDict = (Dictionary<long, Card>)deckListInfo.GetValue(deckBuilder);
+                        hasMatch = true;
 
-                        loadFromWeb(m.Groups[1].Value);
-                    }
-                    else
-                    {
-                    }
-                }
-                else // no matches for regex
-                {
-                }
+                        FieldInfo initedInfo = deckBuilderType.GetField("inited", BindingFlags.NonPublic | BindingFlags.Instance);
 
-            }
-            else
-            {
-                if (!isImport)
-                {
+                        inited = (bool)initedInfo.GetValue(deckBuilder);
+                        if (inited)
+                        {
+                            FieldInfo deckListInfo = deckBuilderType.GetField("allCardsDict", BindingFlags.NonPublic | BindingFlags.Instance);
+                            allCardsDict = (Dictionary<long, Card>)deckListInfo.GetValue(deckBuilder);
+
+                            loadFromWeb(m.Groups[pattern.getMatchNum()].Value);
+                        }
+                    }
                 }
-                else
+                if (!hasMatch)
                 {
+                    App.Popups.ShowOk(null, "fail", "Invalid deck", "That is not a valid link to your deck.", "Ok");
                 }
             }
         }
@@ -179,6 +149,27 @@ namespace DeckSync
                     //mo.Invoke(deckBuilder, new object[]{(int)1});
                 }
             }
+        }
+    }
+
+    internal class RegexPattern
+    {
+        private String pattern;
+        private int matchNum;
+
+        public RegexPattern(String pattern, int matchNum)
+        {
+            this.pattern = pattern;
+            this.matchNum = matchNum;
+        }
+
+        public String getPattern()
+        {
+            return this.pattern;
+        }
+        public int getMatchNum()
+        {
+            return this.matchNum;
         }
     }
 }
