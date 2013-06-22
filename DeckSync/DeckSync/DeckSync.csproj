@@ -61,8 +61,8 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>copy $(TargetDir)$(TargetFileName) C:\Users\kbasten\AppData\Local\Mojang\Scrolls\game\Scrolls_Data\Managed\ModLoader\mods\DeckSync\$(TargetFileName)
-del C:\Users\kbasten\AppData\Local\Mojang\Scrolls\game\Scrolls_Data\Managed\ModLoader\mods.ini</PostBuildEvent>
+    <PostBuildEvent>copy $(TargetDir)$(TargetFileName) C:\Users\Gamepc\AppData\Local\Mojang\Scrolls\game\Scrolls_Data\Managed\ModLoader\mods\DeckSync\$(TargetFileName)
+del C:\Users\Gamepc\AppData\Local\Mojang\Scrolls\game\Scrolls_Data\Managed\ModLoader\mods.ini</PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

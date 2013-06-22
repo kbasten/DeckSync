@@ -27,10 +27,13 @@ namespace DeckSync
 
         private Type deckBuilderType = typeof(DeckBuilder2);
 
+		private GUISkin buttonSkin = (GUISkin)Resources.Load("_GUISkins/Lobby");
+
         public override void AfterInvoke(InvocationInfo info, ref object returnValue)
         {
             if (info.targetMethod.Equals("OnGUI"))
             {
+				GUI.skin = buttonSkin;
                 GUIPositioner positioner3 = App.LobbyMenu.getSubMenuPositioner(1f, 5);
                 if (LobbyMenu.drawButton(positioner3.getButtonRect(3f), "Import Deck"))
                 {
@@ -43,7 +46,7 @@ namespace DeckSync
         {
             if (info.targetMethod.Equals("addListener"))
             {
-                if (info.arguments[0] is DeckBuilder2)
+                if (info.arguments[0] is DeckBuilder2) // obtain instance of deckbuilder2
                 {
                     deckBuilder = (DeckBuilder2)info.arguments[0];
                 }
@@ -55,8 +58,8 @@ namespace DeckSync
         public static MethodDefinition[] GetHooks(TypeDefinitionCollection scrollsTypes, int version)
         {
             return new MethodDefinition[] {
-                    scrollsTypes["Communicator"].Methods.GetMethod("addListener", new Type[]{typeof(ICommListener)}),
-                    scrollsTypes["DeckBuilder2"].Methods.GetMethod("OnGUI")[0]
+                    scrollsTypes["Communicator"].Methods.GetMethod("addListener", new Type[]{typeof(ICommListener)}), // only to obtain instance of deckbuilder2
+                    scrollsTypes["DeckBuilder2"].Methods.GetMethod("OnGUI")[0] // to draw gui buttons on the deckbuilder screen
             };
         }
 
