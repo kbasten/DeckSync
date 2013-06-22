@@ -33,8 +33,14 @@ namespace DeckSync
         {
             if (info.targetMethod.Equals("OnGUI"))
             {
+				if (deckBuilder == null)
+				{
+					deckBuilder = (DeckBuilder2)info.target;
+				}
+
 				GUI.skin = buttonSkin;
                 GUIPositioner positioner3 = App.LobbyMenu.getSubMenuPositioner(1f, 5);
+                GUI.skin = buttonSkin;
                 if (LobbyMenu.drawButton(positioner3.getButtonRect(3f), "Import Deck"))
                 {
                     App.Popups.ShowTextInput(this, "http://www.scrollsguide.com/deckbuilder/#143", "", "impdeck", "Import deck", "Insert the link to your deck:", "Import");
@@ -44,23 +50,22 @@ namespace DeckSync
 
         public override bool BeforeInvoke(InvocationInfo info, out object returnValue)
         {
-            if (info.targetMethod.Equals("addListener"))
-            {
-                if (info.arguments[0] is DeckBuilder2) // obtain instance of deckbuilder2
-                {
-                    deckBuilder = (DeckBuilder2)info.arguments[0];
-                }
-            }
             returnValue = null;
             return false;
         }
 
         public static MethodDefinition[] GetHooks(TypeDefinitionCollection scrollsTypes, int version)
         {
-            return new MethodDefinition[] {
-                    scrollsTypes["Communicator"].Methods.GetMethod("addListener", new Type[]{typeof(ICommListener)}), // only to obtain instance of deckbuilder2
-                    scrollsTypes["DeckBuilder2"].Methods.GetMethod("OnGUI")[0] // to draw gui buttons on the deckbuilder screen
-            };
+			try
+			{
+				return new MethodDefinition[] {
+						scrollsTypes["DeckBuilder2"].Methods.GetMethod("OnGUI")[0] // to draw gui buttons on the deckbuilder screen
+				};
+			}
+			catch
+			{
+				return new MethodDefinition[] { };
+			}
         }
 
         public static string GetName()
@@ -84,8 +89,8 @@ namespace DeckSync
             {
                 // try a few regex patterns until a match is found
                 List<RegexPattern> patterns = new List<RegexPattern>();
-                patterns.Add(new RegexPattern("^http://www\\.scrollsguide\\.com/deckbuilder/\\?d=([0-9]+)$", 1));
-                patterns.Add(new RegexPattern("^http://www\\.scrollsguide\\.com/deckbuilder/?#([0-9]+)$", 1)); // not sure whether the / after deckbuilder is required...
+                patterns.Add(new RegexPattern("^(http://)?www\\.scrollsguide\\.com/deckbuilder/\\?d=([0-9]+)$", 2));
+                patterns.Add(new RegexPattern("^(http://)?www\\.scrollsguide\\.com/deckbuilder/?#([0-9]+)$", 2)); // not sure whether the / after deckbuilder is required...
                 patterns.Add(new RegexPattern("^#?([0-9]+)$", 1));
 
                 bool hasMatch = false;
@@ -122,35 +127,47 @@ namespace DeckSync
             String deckJSON = new WebClient().DownloadString("http://a.scrollsguide.com/deck/load?id=" + deckId);
 
             JsonReader reader = new JsonReader();
-            ApiDeckMessage adm = reader.Read(deckJSON, System.Type.GetType("ApiDeckMessage")) as ApiDeckMessage;
 
-            if (adm.msg.Equals("success"))
+            try
             {
-                List<long> toPlaceOnBoard = new List<long>();
-                foreach (KeyValuePair<long, Card> singleScroll in allCardsDict)
+                ApiDeckMessage adm = reader.Read(deckJSON, System.Type.GetType("ApiDeckMessage")) as ApiDeckMessage;
+
+                if (adm.msg.Equals("success"))
                 {
-                    //log.WriteLine("Checking " + singleScroll.Value.getName() + " ...");
-                    for (int i = 0; i < adm.data.scrolls.Length; i++)
+                    List<long> toPlaceOnBoard = new List<long>();
+                    foreach (KeyValuePair<long, Card> singleScroll in allCardsDict)
                     {
-                        DeckScroll d = adm.data.scrolls[i];
-                        //log.WriteLine("Comparing " + d.id + " to " + singleScroll.Value.getCardType().id + " ...");
-                        if (singleScroll.Value.getCardType().id == d.id && d.c > 0 && !toPlaceOnBoard.Contains(singleScroll.Key)) // this scroll needs to be added to the deck still
+                        //log.WriteLine("Checking " + singleScroll.Value.getName() + " ...");
+                        for (int i = 0; i < adm.data.scrolls.Length; i++)
                         {
-                            d.c--;
-                            toPlaceOnBoard.Add(singleScroll.Key);
-                            // log.WriteLine("Added to toPlaceOnBoard");
+                            DeckScroll d = adm.data.scrolls[i];
+                            //log.WriteLine("Comparing " + d.id + " to " + singleScroll.Value.getCardType().id + " ...");
+                            if (singleScroll.Value.getCardType().id == d.id && d.c > 0 && !toPlaceOnBoard.Contains(singleScroll.Key)) // this scroll needs to be added to the deck still
+                            {
+                                d.c--;
+                                toPlaceOnBoard.Add(singleScroll.Key);
+                                // log.WriteLine("Added to toPlaceOnBoard");
+                            }
                         }
                     }
-                }
 
-                if (toPlaceOnBoard.Count > 0)
+                    if (toPlaceOnBoard.Count > 0)
+                    {
+                        MethodInfo mo = deckBuilderType.GetMethod("loadDeck", BindingFlags.NonPublic | BindingFlags.Instance);
+                        mo.Invoke(deckBuilder, new object[] { (int)-1, (List<long>)toPlaceOnBoard, null });
+
+                        // mo = deckBuilderType.GetMethod("alignTableCards", BindingFlags.NonPublic | BindingFlags.Instance);
+                        // mo.Invoke(deckBuilder, new object[]{(int)1});
+                    }
+                }
+                else
                 {
-                    MethodInfo mo = deckBuilderType.GetMethod("loadDeck", BindingFlags.NonPublic | BindingFlags.Instance);
-                    mo.Invoke(deckBuilder, new object[] { (int)-1, (List<long>)toPlaceOnBoard, null });
-
-                    // mo = deckBuilderType.GetMethod("alignTableCards", BindingFlags.NonPublic | BindingFlags.Instance);
-                    //mo.Invoke(deckBuilder, new object[]{(int)1});
+                    App.Popups.ShowOk(null, "fail", "Import failed", "That deck does not exist, or is deleted.", "Ok");
                 }
+            }
+            catch  // just... general fail
+            {
+                App.Popups.ShowOk(null, "fail", "Import failed", "That deck does not exist, or is deleted.", "Ok");
             }
         }
     }
