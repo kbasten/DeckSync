@@ -53,11 +53,13 @@ namespace DeckSync
 
         public static MethodDefinition[] GetHooks(TypeDefinitionCollection scrollsTypes, int version)
         {
-			if (version != 94)
-				return new MethodDefinition[] { };
-            return new MethodDefinition[] {
+            try {	
+				return new MethodDefinition[] {
                     scrollsTypes["DeckBuilder2"].Methods.GetMethod("OnGUI")[0]
-            };
+            	};
+			} catch {
+				return new MethodDefinition[] { };
+			}
         }
 
         public static string GetName()
