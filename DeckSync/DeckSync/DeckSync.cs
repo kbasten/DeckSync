@@ -33,6 +33,9 @@ namespace DeckSync
         {
             if (info.targetMethod.Equals("OnGUI"))
             {
+				if (deckBuilder == null)
+					deckBuilder = (DeckBuilder2)info.Target;
+
                 GUIPositioner positioner3 = App.LobbyMenu.getSubMenuPositioner(1f, 5);
                 GUI.skin = buttonSkin;
                 if (LobbyMenu.drawButton(positioner3.getButtonRect(3f), "Import Deck"))
@@ -44,21 +47,15 @@ namespace DeckSync
 
         public override bool BeforeInvoke(InvocationInfo info, out object returnValue)
         {
-            if (info.targetMethod.Equals("addListener"))
-            {
-                if (info.arguments[0] is DeckBuilder2)
-                {
-                    deckBuilder = (DeckBuilder2)info.arguments[0];
-                }
-            }
             returnValue = null;
             return false;
         }
 
         public static MethodDefinition[] GetHooks(TypeDefinitionCollection scrollsTypes, int version)
         {
+			if (version != 94)
+				return new MethodDefinition[] { };
             return new MethodDefinition[] {
-                    scrollsTypes["Communicator"].Methods.GetMethod("addListener", new Type[]{typeof(ICommListener)}),
                     scrollsTypes["DeckBuilder2"].Methods.GetMethod("OnGUI")[0]
             };
         }
