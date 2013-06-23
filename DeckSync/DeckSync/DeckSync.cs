@@ -43,7 +43,7 @@ namespace DeckSync
                 GUI.skin = buttonSkin;
                 if (LobbyMenu.drawButton(positioner3.getButtonRect(3f), "Import Deck"))
                 {
-                    App.Popups.ShowTextInput(this, "http://www.scrollsguide.com/deckbuilder/#143", "", "impdeck", "Import deck", "Insert the link to your deck:", "Import");
+                    App.Popups.ShowTextInput(this, "", "", "impdeck", "Import deck", "Insert the link to your deck:", "Import");
                 }
             }
         }
@@ -124,52 +124,63 @@ namespace DeckSync
 
         private void loadFromWeb(String deckId)
         {
-            String deckJSON = new WebClient().DownloadString("http://a.scrollsguide.com/deck/load?id=" + deckId);
 
-            JsonReader reader = new JsonReader();
-
-            try
-            {
-                ApiDeckMessage adm = reader.Read(deckJSON, System.Type.GetType("ApiDeckMessage")) as ApiDeckMessage;
-
-                if (adm.msg.Equals("success"))
-                {
-                    List<long> toPlaceOnBoard = new List<long>();
-                    foreach (KeyValuePair<long, Card> singleScroll in allCardsDict)
-                    {
-                        //log.WriteLine("Checking " + singleScroll.Value.getName() + " ...");
-                        for (int i = 0; i < adm.data.scrolls.Length; i++)
-                        {
-                            DeckScroll d = adm.data.scrolls[i];
-                            //log.WriteLine("Comparing " + d.id + " to " + singleScroll.Value.getCardType().id + " ...");
-                            if (singleScroll.Value.getCardType().id == d.id && d.c > 0 && !toPlaceOnBoard.Contains(singleScroll.Key)) // this scroll needs to be added to the deck still
-                            {
-                                d.c--;
-                                toPlaceOnBoard.Add(singleScroll.Key);
-                                // log.WriteLine("Added to toPlaceOnBoard");
-                            }
-                        }
-                    }
-
-                    if (toPlaceOnBoard.Count > 0)
-                    {
-                        MethodInfo mo = deckBuilderType.GetMethod("loadDeck", BindingFlags.NonPublic | BindingFlags.Instance);
-                        mo.Invoke(deckBuilder, new object[] { (int)-1, (List<long>)toPlaceOnBoard, null });
-
-                        // mo = deckBuilderType.GetMethod("alignTableCards", BindingFlags.NonPublic | BindingFlags.Instance);
-                        // mo.Invoke(deckBuilder, new object[]{(int)1});
-                    }
-                }
-                else
-                {
-                    App.Popups.ShowOk(null, "fail", "Import failed", "That deck does not exist, or is deleted.", "Ok");
-                }
-            }
-            catch  // just... general fail
-            {
-                App.Popups.ShowOk(null, "fail", "Import failed", "That deck does not exist, or is deleted.", "Ok");
-            }
+			WebClientTimeOut wc = new WebClientTimeOut();
+			wc.DownloadStringCompleted += (sender, e) =>
+			{
+				processDeck(e.Result);
+			};
+			wc.TimeOut = 5000;
+			wc.DownloadStringAsync(new Uri("http://a.scrollsguide.com/deck/load?id=" + deckId));
         }
+
+		private void processDeck(String result)
+		{
+			JsonReader reader = new JsonReader();
+
+			try
+			{
+				ApiDeckMessage adm = reader.Read(result, System.Type.GetType("ApiDeckMessage")) as ApiDeckMessage;
+
+				if (adm.msg.Equals("success"))
+				{
+					List<long> toPlaceOnBoard = new List<long>();
+					foreach (KeyValuePair<long, Card> singleScroll in allCardsDict)
+					{
+						//log.WriteLine("Checking " + singleScroll.Value.getName() + " ...");
+						for (int i = 0; i < adm.data.scrolls.Length; i++)
+						{
+							DeckScroll d = adm.data.scrolls[i];
+							//log.WriteLine("Comparing " + d.id + " to " + singleScroll.Value.getCardType().id + " ...");
+							if (singleScroll.Value.getCardType().id == d.id && d.c > 0 && !toPlaceOnBoard.Contains(singleScroll.Key)) // this scroll needs to be added to the deck still
+							{
+								d.c--;
+								toPlaceOnBoard.Add(singleScroll.Key);
+								// log.WriteLine("Added to toPlaceOnBoard");
+							}
+						}
+					}
+
+					if (toPlaceOnBoard.Count > 0)
+					{
+						MethodInfo mo = deckBuilderType.GetMethod("loadDeck", BindingFlags.NonPublic | BindingFlags.Instance);
+						mo.Invoke(deckBuilder, new object[] { (int)-1, (List<long>)toPlaceOnBoard, null });
+
+						// mo = deckBuilderType.GetMethod("alignTableCards", BindingFlags.NonPublic | BindingFlags.Instance);
+						// mo.Invoke(deckBuilder, new object[]{(int)1});
+					}
+				}
+				else
+				{
+					App.Popups.ShowOk(null, "fail", "Import failed", "That deck does not exist, or is deleted.", "Ok");
+				}
+			}
+			catch  // just... general fail
+			{
+				App.Popups.ShowOk(null, "fail", "Import failed", "That deck does not exist, or is deleted.", "Ok");
+			}
+		}
+
     }
 
     internal class RegexPattern
