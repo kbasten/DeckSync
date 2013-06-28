@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace DeckSync
 {
-    public class DeckSync : BaseMod, IOkStringCancelCallback
+    public class DeckSync : BaseMod, IOkStringCancelCallback, IOkCallback
     {
 
         private DeckBuilder2 deckBuilder = null;
@@ -28,6 +28,10 @@ namespace DeckSync
         private Type deckBuilderType = typeof(DeckBuilder2);
 
 		private GUISkin buttonSkin = (GUISkin)Resources.Load("_GUISkins/Lobby");
+
+		private float currentTableCardZ;
+
+		private bool isImporting = false;
 
         public override void AfterInvoke(InvocationInfo info, ref object returnValue)
         {
@@ -42,8 +46,8 @@ namespace DeckSync
                 GUIPositioner positioner3 = App.LobbyMenu.getSubMenuPositioner(1f, 5);
                 GUI.skin = buttonSkin;
                 if (LobbyMenu.drawButton(positioner3.getButtonRect(3f), "Import Deck"))
-                {
-                    App.Popups.ShowTextInput(this, "", "", "impdeck", "Import deck", "Insert the link to your deck:", "Import");
+				{
+					App.Popups.ShowOk(this, "impintro", "Warning", "Using the deck import feature may crash your game on rare occasions, use with caution!", "Ok");
                 }
             }
         }
@@ -51,7 +55,8 @@ namespace DeckSync
         public override bool BeforeInvoke(InvocationInfo info, out object returnValue)
         {
             returnValue = null;
-            return false;
+
+            return isImporting;
         }
 
         public static MethodDefinition[] GetHooks(TypeDefinitionCollection scrollsTypes, int version)
@@ -126,62 +131,138 @@ namespace DeckSync
         {
 
 			WebClientTimeOut wc = new WebClientTimeOut();
+			/*
 			wc.DownloadStringCompleted += (sender, e) =>
 			{
 				processDeck(e.Result);
 			};
+			 * */
 			wc.TimeOut = 5000;
-			wc.DownloadStringAsync(new Uri("http://a.scrollsguide.com/deck/load?id=" + deckId));
+			Console.WriteLine("Loading deck " + deckId);
+			String r = wc.DownloadString("http://a.scrollsguide.com/deck/load?id=" + deckId);
+			processDeck(r);
         }
 
 		private void processDeck(String result)
 		{
 			JsonReader reader = new JsonReader();
 
+			Console.WriteLine("Deck result: " + result);
+
+
+
 			try
 			{
-				ApiDeckMessage adm = reader.Read(result, System.Type.GetType("ApiDeckMessage")) as ApiDeckMessage;
+				ApiDeckMessage adm = (ApiDeckMessage)reader.Read(result, System.Type.GetType("ApiDeckMessage"));
 
 				if (adm.msg.Equals("success"))
 				{
-					List<long> toPlaceOnBoard = new List<long>();
-					foreach (KeyValuePair<long, Card> singleScroll in allCardsDict)
+					if (adm.data.deleted == 1)
 					{
-						//log.WriteLine("Checking " + singleScroll.Value.getName() + " ...");
-						for (int i = 0; i < adm.data.scrolls.Length; i++)
+						App.Popups.ShowOk(null, "fail", "Import failed", "That deck is deleted.", "Ok");
+					}
+					else
+					{
+						DeckCardsMessage dcm = new DeckCardsMessage();
+						dcm.metadata = null;
+						dcm.valid = false;
+						dcm.deck = adm.data.name;
+
+						List<long> done = new List<long>();
+						List<Card> toPlace = new List<Card>();
+						foreach (KeyValuePair<long, Card> singleScroll in allCardsDict)
 						{
-							DeckScroll d = adm.data.scrolls[i];
-							//log.WriteLine("Comparing " + d.id + " to " + singleScroll.Value.getCardType().id + " ...");
-							if (singleScroll.Value.getCardType().id == d.id && d.c > 0 && !toPlaceOnBoard.Contains(singleScroll.Key)) // this scroll needs to be added to the deck still
+							for (int i = 0; i < adm.data.scrolls.Length; i++)
 							{
-								d.c--;
-								toPlaceOnBoard.Add(singleScroll.Key);
-								// log.WriteLine("Added to toPlaceOnBoard");
+								DeckScroll d = adm.data.scrolls[i];
+
+								if (singleScroll.Value.getCardType().id == d.id && d.c > 0 && !done.Contains(singleScroll.Key)) // this scroll needs to be added to the deck still
+								{
+									d.c--;
+									done.Add(singleScroll.Key);
+									Card c = new Card();
+									c.id = singleScroll.Key;
+									toPlace.Add(c);
+									Console.WriteLine("Added to toPlaceOnBoard " + singleScroll.Key + " " + adm.data.name);
+								}
 							}
 						}
-					}
 
-					if (toPlaceOnBoard.Count > 0)
-					{
-						MethodInfo mo = deckBuilderType.GetMethod("loadDeck", BindingFlags.NonPublic | BindingFlags.Instance);
-						mo.Invoke(deckBuilder, new object[] { (int)-1, (List<long>)toPlaceOnBoard, null });
+						dcm.cards = toPlace.ToArray<Card>();
 
-						// mo = deckBuilderType.GetMethod("alignTableCards", BindingFlags.NonPublic | BindingFlags.Instance);
-						// mo.Invoke(deckBuilder, new object[]{(int)1});
+						try
+						{
+							Console.WriteLine("now importing...");
+							MethodInfo mo = deckBuilderType.GetMethod("handleMessage", BindingFlags.Public | BindingFlags.Instance, null, new Type[]{typeof(DeckCardsMessage)}, null);
+							mo.Invoke(deckBuilder, new object[] { (DeckCardsMessage)dcm });
+						}
+						catch (Exception w)
+						{
+							Console.WriteLine(w);
+						}
+						
+						 /*
+						this.currentTableCardZ = 800f;
+						List<long> toPlaceOnBoard = new List<long>();
+						DepletingMultiMapQuery<long, Vector3> positions = new DepletingMultiMapQuery<long, Vector3>();
+						foreach (KeyValuePair<long, Card> singleScroll in allCardsDict)
+						{
+							//log.WriteLine("Checking " + singleScroll.Value.getName() + " ...");
+							for (int i = 0; i < adm.data.scrolls.Length; i++)
+							{
+								DeckScroll d = adm.data.scrolls[i];
+								//log.WriteLine("Comparing " + d.id + " to " + singleScroll.Value.getCardType().id + " ...");
+								if (singleScroll.Value.getCardType().id == d.id && d.c > 0 && !toPlaceOnBoard.Contains(singleScroll.Key)) // this scroll needs to be added to the deck still
+								{
+									d.c--;
+									toPlaceOnBoard.Add(singleScroll.Key);
+									positions.Add(singleScroll.Key, new Vector3(0.5f, 0.5f, getNextZ()));
+								}
+							}
+						}
+
+						if (toPlaceOnBoard.Count > 0 && deckBuilder != null)
+						{
+							try
+							{
+								Console.WriteLine("now importing...");
+								MethodInfo mo = deckBuilderType.GetMethod("loadDeck", BindingFlags.NonPublic | BindingFlags.Instance);
+								mo.Invoke(deckBuilder, new object[] { (string)adm.data.name, (List<long>)toPlaceOnBoard, null });
+							}
+							catch (Exception w)
+							{
+								Console.WriteLine(w);
+							}
+						}
+						else
+						{
+							Console.WriteLine("Null or 0");
+						}
+						 */
 					}
 				}
 				else
 				{
-					App.Popups.ShowOk(null, "fail", "Import failed", "That deck does not exist, or is deleted.", "Ok");
+					App.Popups.ShowOk(null, "fail", "Import failed", "That deck does not exist.", "Ok");
 				}
 			}
 			catch  // just... general fail
 			{
-				App.Popups.ShowOk(null, "fail", "Import failed", "That deck does not exist, or is deleted.", "Ok");
+				App.Popups.ShowOk(null, "fail", "Import failed", "Failed to import deck, please try again later.", "Ok");
 			}
 		}
+		private float getNextZ()
+		{
+			return (this.currentTableCardZ -= 0.05f);
+		}
 
-    }
+		public void PopupOk(string popupType) // this is the first popup with the warning
+		{
+			MethodInfo mo = deckBuilderType.GetMethod("clearTable", BindingFlags.Public | BindingFlags.Instance);
+			mo.Invoke(deckBuilder, new object[] { });
+			App.Popups.ShowTextInput(this, "", "", "impdeck", "Import deck", "Insert the link to your deck:", "Import");
+		}
+	}
 
     internal class RegexPattern
     {
@@ -202,5 +283,57 @@ namespace DeckSync
         {
             return this.matchNum;
         }
-    }
+	}
+
+	internal class DepletingMultiMapQuery<K, T>
+	{
+		private Dictionary<K, Item<K, T>> d;
+
+		public DepletingMultiMapQuery()
+		{
+			this.d = new Dictionary<K, Item<K, T>>();
+		}
+
+		public void Add(K id, T obj)
+		{
+			if (!this.d.ContainsKey(id))
+			{
+				this.d.Add(id, new Item<K, T>());
+			}
+			this.d[id].list.Add(obj);
+		}
+
+		public T getNext(K id)
+		{
+			return this.d[id].getNext();
+		}
+
+		public bool hasNext(K id)
+		{
+			Item<K, T> item = null;
+			return (this.d.TryGetValue(id, out item) && item.hasNext());
+		}
+
+		private class Item<M, N>
+		{
+			public int index;
+			public List<T> list;
+
+			public Item()
+			{
+				this.index = -1;
+				this.list = new List<T>();
+			}
+
+			public T getNext()
+			{
+				return this.list[++this.index];
+			}
+
+			public bool hasNext()
+			{
+				return (this.index < (this.list.Count - 1));
+			}
+		}
+	}
 }

@@ -12,6 +12,7 @@ public class ApiDeckMessage
 public class ApiDeckData
 {
     public String name;
+	public int deleted;
     public DeckScroll[] scrolls;
 
 }
